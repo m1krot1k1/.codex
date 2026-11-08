@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+"""Safely install the managed Codex instructions and named agents."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import sys
+import tempfile
+import tomllib
+from datetime import datetime, timezone
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+MANAGED_AGENT_SETTINGS = tomllib.loads((REPO_ROOT / "config" / "agents.toml").read_text())["agents"]
+
+
+def merge_agents_config(source: str) -> str:
+    parsed = tomllib.loads(source) if source.strip() else {}
+    if "agents" not in parsed:
+        if any(key.startswith("agents.") for key in parsed):
+            raise ValueError("config has [agents.*] tables but no [agents]; refusing an ambiguous merge")
+        suffix = "\n" if source and not source.endswith("\n") else ""
+        block = "\n[agents]\n" + "".join(
+            f"{key} = {json.dumps(value) if isinstance(value, str) else str(value).lower()}\n"
+            for key, value in MANAGED_AGENT_SETTINGS.items()
+        )
+        result = source + suffix + block
+        tomllib.loads(result)
+        return result
+
+    header = re.search(r"(?m)^\[agents\]\s*(?:#.*)?$", source)
+    if not header:
+        raise ValueError("could not locate the [agents] table in config.toml")
+    next_header = re.search(r"(?m)^\[[^\n]+\]\s*(?:#.*)?$", source[header.end():])
+    end = header.end() + next_header.start() if next_header else len(source)
+    section = source[header.end():end]
+    lines = section.splitlines(keepends=True)
+    for key, value in MANAGED_AGENT_SETTINGS.items():
+        encoded = json.dumps(value) if isinstance(value, str) else str(value).lower()
+        assignment = re.compile(rf"^(\s*{re.escape(key)}\s*=\s*)([^#\n]*?)(\s+#.*)?(\n?)$")
+        replaced = False
+        for index, line in enumerate(lines):
+            match = assignment.match(line)
+            if match:
+                lines[index] = f"{match.group(1)}{encoded}{match.group(3) or ''}{match.group(4)}"
+                replaced = True
+                break
+        if not replaced:
+            if lines and not lines[-1].endswith("\n"):
+                lines[-1] += "\n"
+            lines.append(f"{key} = {encoded}\n")
+
+    result = source[:header.end()] + "".join(lines) + source[end:]
+    tomllib.loads(result)
+    return result
+
+
+def atomic_write(path: Path, content: bytes, mode: int | None = None) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as temp:
+        temp.write(content)
+        temp_path = Path(temp.name)
+    if mode is not None:
+        temp_path.chmod(mode)
+    temp_path.replace(path)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--home", type=Path, help="Codex home to use (defaults to CODEX_HOME or ~/.codex)")
+    parser.add_argument("--dry-run", action="store_true", help="show planned changes without writing files")
+    args = parser.parse_args()
+
+    repo = REPO_ROOT
+    home = args.home or Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    targets: dict[Path, bytes] = {
+        home / "AGENTS.md": (repo / "AGENTS.md").read_bytes(),
+    }
+    role_files = sorted((repo / "agents").glob("*.toml"))
+    if not role_files:
+        parser.error("no agent role TOMLs found under agents/")
+    for source_path in role_files:
+        targets[home / "agents" / source_path.name] = source_path.read_bytes()
+
+    config_path = home / "config.toml"
+    old_config = config_path.read_text() if config_path.exists() else ""
+    new_config = merge_agents_config(old_config)
+    targets[config_path] = new_config.encode()
+
+    changed = {path: content for path, content in targets.items() if not path.exists() or path.read_bytes() != content}
+    if not changed:
+        print(f"Already up to date: {home}")
+        return 0
+    if args.dry_run:
+        print("Would update:")
+        for path in changed:
+            print(f"- {path}")
+        return 0
+
+    backup_dir = home / "backups" / "adaptive-codex-install" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    for path in changed:
+        if path.exists():
+            relative = path.relative_to(home)
+            backup = backup_dir / relative
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, backup)
+
+    for path, content in changed.items():
+        mode = path.stat().st_mode & 0o777 if path.exists() else None
+        atomic_write(path, content, mode)
+
+    tomllib.loads(config_path.read_text())
+    print(f"Installed {len(changed)} managed file(s) under {home}")
+    if backup_dir.exists():
+        print(f"Backups: {backup_dir}")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, tomllib.TOMLDecodeError) as exc:
+        print(f"install failed: {exc}", file=sys.stderr)
+        raise SystemExit(1)

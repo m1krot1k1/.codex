@@ -1,0 +1,16 @@
+# Local state, credentials, account data, and generated files
+auth.json
+*.env
+.env
+.env.*
+!.env.example
+sessions/
+threads/
+logs/
+*.log
+backups/
+*.sqlite
+*.db
+__pycache__/
+*.py[cod]
+.DS_Store
