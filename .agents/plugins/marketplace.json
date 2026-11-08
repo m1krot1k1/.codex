@@ -1,0 +1,20 @@
+{
+  "name": "adaptive-codex",
+  "interface": {
+    "displayName": "Adaptive Codex"
+  },
+  "plugins": [
+    {
+      "name": "adaptive-quota",
+      "source": {
+        "source": "local",
+        "path": "./plugins/adaptive-quota"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

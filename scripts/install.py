@@ -16,6 +16,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MANAGED_AGENT_SETTINGS = tomllib.loads((REPO_ROOT / "config" / "agents.toml").read_text())["agents"]
+MANAGED_TOOLS = ("quota_guard.py", "quota_snapshot.py", "mco_gate.py")
 
 
 def merge_agents_config(source: str) -> str:
@@ -86,6 +87,20 @@ def main() -> int:
     for source_path in role_files:
         targets[home / "agents" / source_path.name] = source_path.read_bytes()
 
+    skill_dirs = sorted(path for path in (repo / "skills").iterdir() if path.is_dir())
+    if not skill_dirs:
+        parser.error("no managed skills found under skills/")
+    for skill_dir in skill_dirs:
+        skill_file = skill_dir / "SKILL.md"
+        if not skill_file.is_file():
+            parser.error(f"skill is missing SKILL.md: {skill_dir}")
+        targets[home / "skills" / skill_dir.name / "SKILL.md"] = skill_file.read_bytes()
+    for tool_name in MANAGED_TOOLS:
+        source_path = repo / "scripts" / tool_name
+        if not source_path.is_file():
+            parser.error(f"managed tool is missing: {source_path}")
+        targets[home / "tools" / "adaptive-codex" / tool_name] = source_path.read_bytes()
+
     config_path = home / "config.toml"
     old_config = config_path.read_text() if config_path.exists() else ""
     new_config = merge_agents_config(old_config)
@@ -114,7 +129,7 @@ def main() -> int:
         atomic_write(path, content, mode)
 
     tomllib.loads(config_path.read_text())
-    print(f"Installed {len(changed)} managed file(s) under {home}")
+    print(f"Installed {len(changed)} managed instruction, role, skill, and tool file(s) under {home}")
     if backup_dir.exists():
         print(f"Backups: {backup_dir}")
     return 0

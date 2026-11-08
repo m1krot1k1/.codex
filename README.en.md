@@ -2,7 +2,7 @@
 
 English documentation. [Русская версия →](README.md)
 
-A set of Codex Desktop/CLI instructions and roles: stronger models are reserved for work that benefits from them, implementers receive bounded file ownership, and both remaining usage and reset times inform each substantial phase.
+A set of Codex Desktop/CLI instructions, roles, skills, and a local plugin: model tier and parallelism follow the task, both usage windows and reset timers inform costly phases, and a separate gate prevents accidental comparative reviews when reserves are low or unknown.
 
 > **Honest boundary:** this system helps conserve the shared Plus allowance and pauses work before optional stages become risky. It cannot guarantee zero chance of exhaustion: usage is shared across Codex and other supported ChatGPT experiences, and the cost of a future task is not known exactly. The only way to guarantee no usage is to make no requests.
 
@@ -25,7 +25,7 @@ flowchart TD
     K --> B
 ```
 
-The repository contains global `AGENTS.md` instructions, six custom roles, a safe installer, a validator, and a helper that recommends a mode from both usage windows and their reset timers. The helper does not send model requests or change the speed toggle.
+The repository contains global `AGENTS.md` instructions, six roles, three Codex skills, a local plugin with an optional session-start reminder, a safe installer, a validator, a sanitized usage snapshot, and a quota recommendation helper. The core scripts make no model requests and do not change Fast.
 
 ## How it saves usage from the start of a window
 
@@ -64,6 +64,48 @@ Fast stays off when weekly usage is low or unknown, the task can wait, or the li
 
 The installer preserves `service_tier = "default"` and does not control the UI. In Codex Desktop, use the lightning toggle; in versions that expose the command, `/fast` is also available. `scripts/quota_guard.py` can flag Fast for manual consideration but never turns it on. If the current agent has no supported UI action or command, it should name the phase where Fast is justified and ask the user to enable it, then remind them to turn it off afterward.
 
+## Open-source integrations
+
+| Project | Status | Role in this setup |
+| --- | --- | --- |
+| Codex skills and lifecycle hooks | Included | `adaptive-codex` defines the workflow; the SessionStart plugin reads only a short-lived sanitized quota snapshot and reminds the agent about reset times. |
+| [MCO](https://github.com/mco-org/mco), MIT | CLI 0.13.0 installed separately; its bundled skill is not installed, and calls go only through `mco_gate.py` | Optional read-only comparison for rare high-risk changes. The gate requires fresh usage, more than 50% in both windows, an explicitly chosen team of 2–3 providers, a narrow in-repository scope, and a separate `--execute`. |
+| Official Codex app-server/SDK | Skill guidance is included; no persistent service is deployed | Useful when an application truly needs to create, resume, and monitor Codex threads programmatically. For everyday coding, built-in threads and `codex resume` are simpler and more economical. |
+| A separate persistent orchestrator with its own workers | Not added | Codex already provides agent branches, worktrees, and resume. A second manager would duplicate these, add background processes, and make extra model calls. |
+
+MCO does not save usage: each selected provider does its own work, and the `codex` provider uses the account’s shared allowance. Provider teams are never inferred, and MCO is not called for normal tasks. CLI 0.13.0 was verified and installed separately, without the additional skill that could bypass the gate:
+
+```bash
+npm install --global @tt-a1i/mco@0.13.0 --ignore-scripts --no-audit --no-fund
+mco --version
+```
+
+The main `scripts/install.py` does not install third-party packages. If the CLI is already installed, do not install it again. Preview the exact call below and only execute after choosing a provider team:
+
+```bash
+python3 scripts/mco_gate.py \
+  --repo /path/to/repository \
+  --providers claude,codex \
+  --target-paths src/important-module,tests/important-module \
+  --prompt-file /path/to/review-prompt.txt
+```
+
+Preview does not launch providers. For a real read-only review, only after the user confirms the exact `claude,codex` team and the fresh usage is above the reserves:
+
+```bash
+python3 scripts/mco_gate.py \
+  --repo /path/to/repository \
+  --providers claude,codex \
+  --target-paths src/important-module,tests/important-module \
+  --confirm-provider-team claude,codex \
+  --prompt-file /path/to/review-prompt.txt \
+  --execute
+```
+
+The gate blocks actual dispatch when the snapshot is missing/stale, either window is at or below 50%, confirmation is absent, more than three providers are selected, whole-repository scope is requested instead of explicit paths, or the MCO CLI is unavailable. It passes only the selected paths, uses `read_only` and `strict` modes with a five-minute global timeout, and only runs `mco review`, never `mco run`. MCO path restrictions validate the requested scope but are not an operating-system sandbox; actual isolation depends on the provider CLI.
+
+Ollama, LM Studio, and other local model providers are intentionally excluded from this package.
+
 ## Roles and models
 
 | Role | Model | Use |
@@ -89,13 +131,40 @@ python3 scripts/install.py --dry-run
 python3 scripts/install.py
 ```
 
+To add the plugin to Codex Desktop/CLI from a local clone of the private repository:
+
+```bash
+codex plugin marketplace add /absolute/path/to/.codex
+codex plugin add adaptive-quota@adaptive-codex
+```
+
+Restart Codex. Before the first run, open `/hooks` in the CLI or **Settings → Hooks** in the app, inspect the `SessionStart` command, and trust only its current contents. Codex skips unreviewed plugin hooks. This hook cannot block work and reads only `$CODEX_HOME/state/adaptive-quota.json`.
+
 The installer:
 
 - installs `AGENTS.md` and role TOMLs into `$CODEX_HOME` (or `~/.codex`);
+- installs three skills into `$CODEX_HOME/skills/` and three helper scripts into `$CODEX_HOME/tools/adaptive-codex/`;
 - adds/updates only managed `[agents]` keys in `config.toml`;
 - preserves all other settings and user values;
 - creates backups of changed files before replacement at `backups/adaptive-codex-install/<UTC timestamp>/`;
 - does not touch authentication, history, secrets, model settings, `service_tier`, working repositories, or projects.
+
+The plugin is installed separately by the commands above, so the user can see when it is connected and review its hook. The regular installer does not add hooks directly to `config.toml`.
+
+### Store a fresh usage snapshot
+
+When `get_usage_limits` is available in the current interface, pass only the used percentages and the Unix reset times to the snapshot helper:
+
+```bash
+python3 scripts/quota_snapshot.py record \
+  --primary-used-percent 31 --primary-resets-at <unix-seconds> \
+  --weekly-used-percent 79 --weekly-resets-at <unix-seconds> \
+  --saved-reset-available
+
+python3 scripts/quota_guard.py --snapshot "$CODEX_HOME/state/adaptive-quota.json"
+```
+
+If `CODEX_HOME` is unset, the snapshot lives at `~/.codex/state/adaptive-quota.json`. The helper stores only percentages, reset timestamps, and whether a saved reset is available—no `accountId`, reset-credit IDs, authentication, or raw tool response. Snapshots expire after 15 minutes. Refresh the official meter before every costly phase; the session hook displays only the last saved reading and does not query the account by itself.
 
 Check a quota profile without account credentials or usage files:
 
@@ -138,9 +207,13 @@ In interactive CLI, resume long work with `codex resume`. In Codex Desktop, cont
 - `agents/*.toml` — six named Codex roles.
 - `config/agents.toml` — documented agent configuration fragment.
 - `scripts/install.py` — safe installation with backups.
+- `scripts/quota_snapshot.py` — short-lived quota snapshot storage with `0600` file permissions.
 - `scripts/quota_guard.py` — recommendation from both remaining percentages, reset timers, urgency, and criticality; it makes no model calls.
+- `scripts/mco_gate.py` — optional gate for a confirmed read-only MCO review.
+- `skills/` — the main workflow and two focused guides for MCO and official Codex app-server.
+- `plugins/adaptive-quota/` — marketplace plugin and safe SessionStart hook.
 - `scripts/validate.py` — structural validation of roles and required policy.
-- `tests/test_quota_guard.py` — targeted timer and threshold tests.
+- `tests/` — installer, reset/threshold, private snapshot, hook, and MCO gate tests.
 
 ## Permissions, privacy, and limits
 
@@ -162,3 +235,7 @@ Validated on macOS with Codex Desktop `26.1103.41825`, its bundled CLI `0.167.0-
 - [Using Codex with your ChatGPT plan](https://help.openai.com/en/articles/11369540-using-codex-with-your-chatgpt-plan)
 - [Codex subagents](https://developers.openai.com/codex/subagents/)
 - [Codex configuration reference](https://developers.openai.com/codex/config-reference/)
+- [Codex plugins and lifecycle hooks](https://developers.openai.com/plugins/build/plugins)
+- [Reviewing and trusting hooks](https://developers.openai.com/codex/hooks)
+- [Official Codex app-server/SDK](https://developers.openai.com/blog/codex-as-a-platform)
+- [MCO source, license, and instructions](https://github.com/mco-org/mco)

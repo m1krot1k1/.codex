@@ -5,7 +5,16 @@ from __future__ import annotations
 
 import argparse
 import re
+import sys
+import time
 from dataclasses import dataclass
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from quota_snapshot import DEFAULT_TTL_SECONDS, read_snapshot, snapshot_path
 
 
 @dataclass(frozen=True)
@@ -154,6 +163,7 @@ def _percent(value: str) -> float:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--snapshot", type=Path, help="read a fresh sanitized snapshot (stale snapshots fail closed)")
     parser.add_argument("--primary-remaining", type=_percent, help="remaining percent in the short (usually 5-hour) window")
     parser.add_argument("--primary-reset-in", help="reset countdown, e.g. 1h4m")
     parser.add_argument("--weekly-remaining", type=_percent, help="remaining percent in the weekly window")
@@ -170,18 +180,35 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     try:
-        primary_reset = parse_duration(args.primary_reset_in) if args.primary_reset_in else None
-        weekly_reset = parse_duration(args.weekly_reset_in) if args.weekly_reset_in else None
+        if args.snapshot:
+            from_snapshot, fresh, age = read_snapshot(args.snapshot, ttl_seconds=DEFAULT_TTL_SECONDS)
+            if from_snapshot is None or not fresh:
+                print("Состояние: unknown")
+                print("Лимит неизвестен или снимок устарел; обновите get_usage_limits и сохраните новый снимок.")
+                print("Модель: gpt-6-luna / medium; Fast: off; без необязательных этапов.")
+                return 0
+            primary_remaining = float(from_snapshot["primaryRemaining"])
+            weekly_remaining = float(from_snapshot["weeklyRemaining"])
+            primary_reset = max(0, (int(from_snapshot["primaryResetsAt"]) - int(time.time())) / 3600)
+            weekly_reset = max(0, (int(from_snapshot["weeklyResetsAt"]) - int(time.time())) / 3600)
+            saved_reset_available = bool(from_snapshot.get("savedResetAvailable"))
+            print(f"Снимок лимитов обновлён {age // 60} мин. назад.")
+        else:
+            primary_remaining = args.primary_remaining
+            weekly_remaining = args.weekly_remaining
+            primary_reset = parse_duration(args.primary_reset_in) if args.primary_reset_in else None
+            weekly_reset = parse_duration(args.weekly_reset_in) if args.weekly_reset_in else None
+            saved_reset_available = args.saved_reset_available
         plan = make_plan(
-            args.primary_remaining,
+            primary_remaining,
             primary_reset,
-            args.weekly_remaining,
+            weekly_remaining,
             weekly_reset,
             urgent=args.urgent,
             critical=args.critical,
             sol_authorized=args.sol_authorized,
             user_authorized_continue=args.user_authorized_continue,
-            saved_reset_available=args.saved_reset_available,
+            saved_reset_available=saved_reset_available,
         )
     except ValueError as exc:
         parser.error(str(exc))

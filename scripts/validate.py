@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import sys
+import json
 import tomllib
 from pathlib import Path
 
@@ -40,7 +41,26 @@ def main() -> int:
     for phrase in ("get_usage_limits", "100% остатка", "Fast", "время до сброса"):
         if phrase not in quota:
             raise ValueError(f"AGENTS.md is missing required policy text: {phrase}")
-    print(f"Validated {len(EXPECTED)} agent roles, agent defaults, and quota/reset/Fast policy.")
+    for skill_dir in sorted((ROOT / "skills").iterdir()):
+        skill_file = skill_dir / "SKILL.md"
+        text = skill_file.read_text()
+        blocks = text.split("---\n", 2) if text.startswith("---\n") else []
+        if len(blocks) != 3 or not blocks[1].startswith("name: ") or "\ndescription: " not in blocks[1]:
+            raise ValueError(f"skill is missing required name/description frontmatter: {skill_file}")
+    plugin_root = ROOT / "plugins" / "adaptive-quota"
+    manifest = json.loads((plugin_root / ".codex-plugin" / "plugin.json").read_text())
+    hooks = json.loads((plugin_root / "hooks" / "hooks.json").read_text())
+    marketplace = json.loads((ROOT / ".agents" / "plugins" / "marketplace.json").read_text())
+    if manifest.get("name") != "adaptive-quota" or manifest.get("skills") != "./skills/" or manifest.get("hooks") != "./hooks/hooks.json":
+        raise ValueError("plugin manifest is missing its skill or SessionStart hook")
+    if "SessionStart" not in hooks.get("hooks", {}):
+        raise ValueError("plugin must only add the declared SessionStart reminder hook")
+    entries = [entry for entry in marketplace.get("plugins", []) if entry.get("name") == "adaptive-quota"]
+    if len(entries) != 1 or entries[0].get("source", {}).get("path") != "./plugins/adaptive-quota":
+        raise ValueError("adaptive-quota is missing from the local plugin marketplace")
+    if (plugin_root / "skills" / "adaptive-codex" / "SKILL.md").read_bytes() != (ROOT / "skills" / "adaptive-codex" / "SKILL.md").read_bytes():
+        raise ValueError("bundled and global adaptive-codex skills must stay in sync")
+    print(f"Validated {len(EXPECTED)} agent roles, {len(list((ROOT / 'skills').iterdir()))} skills, plugin hooks, agent defaults, and quota/reset/Fast policy.")
     return 0
 
 

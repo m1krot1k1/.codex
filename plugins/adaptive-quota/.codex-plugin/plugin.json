@@ -1,0 +1,7 @@
+{
+  "name": "adaptive-quota",
+  "version": "1.0.0",
+  "description": "Adaptive Codex workflow with a short-lived, credential-free quota reminder.",
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json"
+}
