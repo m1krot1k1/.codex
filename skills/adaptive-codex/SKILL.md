@@ -37,18 +37,17 @@ Use this workflow for development tasks. Follow the active project `AGENTS.md`; 
 
 Apply the stricter of the short and weekly windows, and refresh the meter after a costly phase. The meter is account-wide and can change in other chats or devices.
 
-- At 50% or less in either window: remove optional review and Astra.
-- At 35% or less: do not start new agent stages.
-- At 25% or less in the **weekly** window: do not pause useful coordinator work solely because of that percentage. Continue worthwhile work on Luna in single-agent mode while both windows remain above 10%; no new agents, Fast, Astra, or optional reviews. Refresh the official meter before each costly phase.
+- Use the **short** window to choose the current model-work pace. At 50% or less short-window balance, remove optional review and Astra; at 35% or less, do not start new agent stages.
+- A low weekly balance above 10% does not by itself disable useful agent stages, Fast, or required checks. Keep using the current short-window headroom for worthwhile work; refresh both official readings before costly phases and account for the weekly reset as a shared hard boundary.
 - At 25% or less in the **short** window, wait for its reset only when the short-window balance is low, the reset is near, and the specific task can wait.
-- At 10% or less in either window: stop new costly stages and checkpoint unless the user explicitly directs continuation. Even then, stay solo on Luna and skip agents, Fast, and optional runs.
-- A near weekly reset does not itself require pausing useful work or justify accelerating usage. Preserve the shared weekly remainder for worthwhile work until the reset; do not spend quota merely to empty the short-window meter.
+- At 10% or less in either window: stop new costly stages and checkpoint unless the user explicitly directs continuation. Even then, skip optional runs.
+- A near weekly reset does not itself require pausing useful work. Use it in the schedule, while selecting stages from short-window headroom and task value; do not spend quota merely to empty the short-window meter.
 - At 100%, budget for the full time to the weekly reset. Even pacing is only a rough reserve cue, not a prediction of task cost. Keep Luna Medium as default, and preserve allowance for other chats/devices.
 - If a saved free reset is shown, tell the user only when it could avoid waiting. Never consume it or imply availability bypasses current eligibility; the user decides.
 
 ## 4. Fast and comparative tools
 
-- Fast is a separate Codex speed setting that uses more allowance. Keep it off by default. Only consider it for an urgent bounded step when a fresh meter shows healthy headroom in both windows and the time saved matters. Ask the user to toggle it in the app if no supported UI control is available; remind them to turn it off afterward. Never infer an exact cost multiplier from the UI label.
+- Fast is a separate Codex speed setting that uses more allowance. Keep it off by default. Only consider it for an urgent bounded step when the fresh short-window balance is above 50%, the weekly balance is above the 10% reserve, and the time saved matters. Low weekly usage above 10% alone does not block it. Ask the user to toggle it in the app if no supported UI control is available; remind them to turn it off afterward. Never infer an exact cost multiplier from the UI label.
 - MCO is an optional independent review, not an economy mode. It launches additional provider calls and may consume the same Plus allowance when `codex` is selected. Do not call MCO by default. For a genuinely high-risk review, require a fresh snapshot, more than 50% in both windows, a provider team explicitly chosen and confirmed with the user, and read-only review. Use `mco_gate.py`; do not invoke raw MCO commands around the gate.
 - No local model/provider is configured by this package.
 

@@ -106,42 +106,45 @@ def make_plan(
         plan["reasons"].append("В коротком окне мало остатка, сброс будет в течение часа.")
         return plan
 
-    plan["state"] = "conserve" if min(primary.remaining, weekly.remaining) <= 50 else "balanced"
+    # The short window is immediate capacity; the weekly window is a horizon
+    # and hard reserve. Do not let a low-but-available weekly balance disable
+    # useful work while the current short window has room.
+    plan["state"] = "conserve" if primary.remaining <= 50 else "balanced"
 
-    if min(primary.remaining, weekly.remaining) <= 35:
+    if primary.remaining <= 35:
         plan["max_concurrent_agents"] = 0
-        plan["action"] = "Продолжать полезную работу координатором на Luna Medium; не запускать новых агентов и необязательных этапов. Перед следующим затратным этапом обновить оба окна."
-        plan["reasons"].append("В одном из окон осталось не более 35%.")
-    elif min(primary.remaining, weekly.remaining) <= 50:
+        plan["action"] = "Продолжать необходимую работу координатором на Luna Medium; не начинать агентские этапы, пока короткое окно не обновится. Перед затратным шагом сверить оба окна."
+        plan["reasons"].append("В коротком окне осталось не более 35%.")
+    elif primary.remaining <= 50:
         plan["max_concurrent_agents"] = 1
-        plan["action"] = "Использовать Luna Medium. Убрать необязательное ревью и Astra; делегировать только если это явно сократит общий объём работы."
-        plan["reasons"].append("В одном из окон осталось не более 50%.")
+        plan["action"] = "Использовать Luna Medium; допускается один агент, если он явно сократит риск или время. Убрать необязательное ревью и Astra до сброса короткого окна."
+        plan["reasons"].append("В коротком окне осталось не более 50%.")
     else:
         plan["max_concurrent_agents"] = 2
-        plan["action"] = "Начать с Luna Medium. Запускать до двух агентов одновременно только для независимой полезной работы; сохранить недельный запас для следующих задач."
-        plan["reasons"].append("Даже полный остаток — общий бюджет на всё время до недельного сброса.")
+        plan["action"] = "Продолжать на Luna Medium; при явной пользе допускается до двух независимых агентов. Перед затратными этапами обновлять оба счётчика и учитывать время их сброса."
+        plan["reasons"].append("В коротком окне больше 50%: лимит допускает обычную полезную параллельную работу.")
 
     if weekly.remaining <= 25:
         plan["reasons"].append(
-            "Недельный остаток 25% или ниже сам по себе не останавливает полезную одиночную работу: короткое окно — отдельный лимит, а недельный запас нужно расходовать экономно до его сброса."
+            "Недельный остаток 25% или ниже сам по себе не сокращает число агентов и не останавливает текущую работу, пока он выше 10%; этапы маршрутизируются по остатку короткого окна и их пользе."
         )
 
-    if critical and sol_authorized and min(primary.remaining, weekly.remaining) > 50:
+    if critical and sol_authorized and primary.remaining > 50:
         plan.update(model="gpt-6.1-sol", reasoning="high")
         plan["reasons"].append("Sol выбран только для явно отмеченного критичного решения.")
     elif critical:
-        plan["reasons"].append("Критичность отмечена, но Sol остаётся выключенным без прямого подтверждения пользователя о достаточном остатке.")
+        plan["reasons"].append("Критичность отмечена, но Sol остаётся выключенным без прямого подтверждения пользователя о достаточном остатке и свободного короткого окна.")
 
-    if urgent and min(primary.remaining, weekly.remaining) > 50:
+    if urgent and primary.remaining > 50:
         plan["fast"] = "eligible_for_manual_consideration"
         plan["reasons"].append(
-            "Fast можно рассмотреть только для срочного этапа, если выигрыш по времени значителен; он расходует больше лимита. Переключить вручную в Codex, затем выключить."
+            "Fast можно рассмотреть для срочного этапа при запасе короткого окна выше 50%; низкий недельный остаток выше 10% сам по себе не блокирует его. Он расходует больше лимита: переключить вручную на один этап и затем выключить."
         )
     else:
-        plan["reasons"].append("Fast выключен: нет срочности или подтверждённого запаса в обоих окнах.")
+        plan["reasons"].append("Fast выключен: нет срочности или в коротком окне не осталось больше 50%.")
 
     if weekly.reset_hours <= 12:
-        plan["reasons"].append("Недельный сброс близко: не останавливать полезную работу автоматически и не ускорять расход только из-за близкого сброса; checkpoint допустим, если конкретная задача может подождать.")
+        plan["reasons"].append("Недельный сброс близко: низкий остаток не блокирует полезные этапы; выбирай их по ценности и короткому окну, не ускоряя расход ради самого сброса.")
     if primary.reset_hours <= 1:
         plan["reasons"].append("Сброс короткого окна близко, но недельное окно остаётся отдельным ограничением.")
     return plan

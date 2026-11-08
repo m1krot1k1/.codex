@@ -26,19 +26,19 @@ class QuotaGuardTests(unittest.TestCase):
         self.assertEqual(plan["fast"], "off")
         self.assertEqual(plan["max_concurrent_agents"], 1)
 
-    def test_low_weekly_reserve_continues_useful_work_solo(self):
+    def test_low_weekly_reserve_does_not_reduce_short_window_route(self):
         plan = quota_guard.make_plan(62, 1.5, 24, 6)
-        self.assertEqual(plan["state"], "conserve")
+        self.assertEqual(plan["state"], "balanced")
         self.assertEqual(plan["fast"], "off")
-        self.assertEqual(plan["max_concurrent_agents"], 0)
-        self.assertIn("Продолжать полезную работу координатором", plan["action"])
+        self.assertEqual(plan["max_concurrent_agents"], 2)
+        self.assertTrue(any("сам по себе не сокращает число агентов" in reason for reason in plan["reasons"]))
 
-    def test_explicit_continue_at_low_weekly_budget_stays_solo(self):
+    def test_continue_flag_does_not_change_low_weekly_route(self):
         plan = quota_guard.make_plan(62, 1.5, 24, 6, user_authorized_continue=True)
-        self.assertEqual(plan["state"], "conserve")
+        self.assertEqual(plan["state"], "balanced")
         self.assertEqual(plan["model"], "gpt-6-luna")
         self.assertEqual(plan["fast"], "off")
-        self.assertEqual(plan["max_concurrent_agents"], 0)
+        self.assertEqual(plan["max_concurrent_agents"], 2)
 
     def test_saved_reset_is_not_redeemed_automatically(self):
         plan = quota_guard.make_plan(62, 1.5, 8, 6, saved_reset_available=True)
@@ -47,17 +47,16 @@ class QuotaGuardTests(unittest.TestCase):
 
     def test_short_window_headroom_is_used_even_when_weekly_is_low_and_reset_is_near(self):
         plan = quota_guard.make_plan(91, 3.9, 18, 6.7)
-        self.assertEqual(plan["state"], "conserve")
+        self.assertEqual(plan["state"], "balanced")
         self.assertEqual(plan["model"], "gpt-6-luna")
         self.assertEqual(plan["fast"], "off")
-        self.assertEqual(plan["max_concurrent_agents"], 0)
-        self.assertIn("Продолжать полезную работу координатором", plan["action"])
-        self.assertTrue(any("сам по себе не останавливает" in reason for reason in plan["reasons"]))
+        self.assertEqual(plan["max_concurrent_agents"], 2)
+        self.assertTrue(any("сам по себе не сокращает число агентов" in reason for reason in plan["reasons"]))
 
     def test_near_low_weekly_reset_does_not_auto_pause(self):
         plan = quota_guard.make_plan(58, 3, 24, 0.5)
-        self.assertEqual(plan["state"], "conserve")
-        self.assertEqual(plan["max_concurrent_agents"], 0)
+        self.assertEqual(plan["state"], "balanced")
+        self.assertEqual(plan["max_concurrent_agents"], 2)
 
     def test_very_low_window_stops_unless_user_explicitly_continues(self):
         plan = quota_guard.make_plan(91, 3.9, 8, 6.7)
@@ -65,6 +64,11 @@ class QuotaGuardTests(unittest.TestCase):
         continued = quota_guard.make_plan(91, 3.9, 8, 6.7, user_authorized_continue=True)
         self.assertEqual(continued["state"], "conserve")
         self.assertEqual(continued["max_concurrent_agents"], 0)
+
+    def test_low_short_window_limits_agents_even_when_weekly_is_full(self):
+        plan = quota_guard.make_plan(30, 2, 95, 72)
+        self.assertEqual(plan["state"], "conserve")
+        self.assertEqual(plan["max_concurrent_agents"], 0)
 
     def test_full_budget_does_not_enable_fast_without_urgency(self):
         plan = quota_guard.make_plan(100, 5, 100, 120)
@@ -88,9 +92,15 @@ class QuotaGuardTests(unittest.TestCase):
         plan = quota_guard.make_plan(100, 4, 100, 168, critical=True)
         self.assertEqual(plan["model"], "gpt-6-luna")
 
-    def test_urgent_work_with_low_weekly_usage_does_not_enable_fast(self):
+    def test_low_weekly_usage_does_not_block_fast_when_short_window_is_available(self):
         plan = quota_guard.make_plan(80, 2, 42, 72, urgent=True)
-        self.assertEqual(plan["fast"], "off")
+        self.assertEqual(plan["fast"], "eligible_for_manual_consideration")
+        self.assertEqual(plan["max_concurrent_agents"], 2)
+
+    def test_low_weekly_usage_does_not_block_critical_model_with_user_authorization(self):
+        plan = quota_guard.make_plan(90, 4, 18, 6, critical=True, sol_authorized=True)
+        self.assertEqual(plan["model"], "gpt-6.1-sol")
+        self.assertEqual(plan["max_concurrent_agents"], 2)
 
     def test_near_short_reset_waits_when_window_is_low(self):
         plan = quota_guard.make_plan(20, 0.5, 90, 48)
