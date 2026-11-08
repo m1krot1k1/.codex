@@ -39,9 +39,10 @@ Apply the stricter of the short and weekly windows, and refresh the meter after 
 
 - At 50% or less in either window: remove optional review and Astra.
 - At 35% or less: do not start new agent stages.
-- At 25% or less: finish only a short safe step and checkpoint; wait for reset unless the user explicitly directed continuation.
-- At 10% or less: no optional model runs.
-- When the limiting window has little left and resets soon, save a checkpoint and wait if the task can wait. A nearby reset is not a reason to spend more.
+- At 25% or less in the **weekly** window: do not pause useful coordinator work solely because of that percentage. Continue worthwhile work on Luna in single-agent mode while both windows remain above 10%; no new agents, Fast, Astra, or optional reviews. Refresh the official meter before each costly phase.
+- At 25% or less in the **short** window, wait for its reset only when the short-window balance is low, the reset is near, and the specific task can wait.
+- At 10% or less in either window: stop new costly stages and checkpoint unless the user explicitly directs continuation. Even then, stay solo on Luna and skip agents, Fast, and optional runs.
+- A near weekly reset does not itself require pausing useful work or justify accelerating usage. Preserve the shared weekly remainder for worthwhile work until the reset; do not spend quota merely to empty the short-window meter.
 - At 100%, budget for the full time to the weekly reset. Even pacing is only a rough reserve cue, not a prediction of task cost. Keep Luna Medium as default, and preserve allowance for other chats/devices.
 - If a saved free reset is shown, tell the user only when it could avoid waiting. Never consume it or imply availability bypasses current eligibility; the user decides.
 

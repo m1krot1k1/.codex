@@ -26,10 +26,12 @@ class QuotaGuardTests(unittest.TestCase):
         self.assertEqual(plan["fast"], "off")
         self.assertEqual(plan["max_concurrent_agents"], 1)
 
-    def test_weekly_reserve_pauses_by_default(self):
+    def test_low_weekly_reserve_continues_useful_work_solo(self):
         plan = quota_guard.make_plan(62, 1.5, 24, 6)
-        self.assertEqual(plan["state"], "pause")
+        self.assertEqual(plan["state"], "conserve")
         self.assertEqual(plan["fast"], "off")
+        self.assertEqual(plan["max_concurrent_agents"], 0)
+        self.assertIn("Продолжать полезную работу координатором", plan["action"])
 
     def test_explicit_continue_at_low_weekly_budget_stays_solo(self):
         plan = quota_guard.make_plan(62, 1.5, 24, 6, user_authorized_continue=True)
@@ -39,9 +41,30 @@ class QuotaGuardTests(unittest.TestCase):
         self.assertEqual(plan["max_concurrent_agents"], 0)
 
     def test_saved_reset_is_not_redeemed_automatically(self):
-        plan = quota_guard.make_plan(62, 1.5, 24, 6, saved_reset_available=True)
-        self.assertEqual(plan["state"], "pause")
-        self.assertTrue(any("спросить пользователя перед применением" in reason for reason in plan["reasons"]))
+        plan = quota_guard.make_plan(62, 1.5, 8, 6, saved_reset_available=True)
+        self.assertEqual(plan["state"], "stop")
+        self.assertTrue(any("не применять без явного решения" in reason for reason in plan["reasons"]))
+
+    def test_short_window_headroom_is_used_even_when_weekly_is_low_and_reset_is_near(self):
+        plan = quota_guard.make_plan(91, 3.9, 18, 6.7)
+        self.assertEqual(plan["state"], "conserve")
+        self.assertEqual(plan["model"], "gpt-6-luna")
+        self.assertEqual(plan["fast"], "off")
+        self.assertEqual(plan["max_concurrent_agents"], 0)
+        self.assertIn("Продолжать полезную работу координатором", plan["action"])
+        self.assertTrue(any("сам по себе не останавливает" in reason for reason in plan["reasons"]))
+
+    def test_near_low_weekly_reset_does_not_auto_pause(self):
+        plan = quota_guard.make_plan(58, 3, 24, 0.5)
+        self.assertEqual(plan["state"], "conserve")
+        self.assertEqual(plan["max_concurrent_agents"], 0)
+
+    def test_very_low_window_stops_unless_user_explicitly_continues(self):
+        plan = quota_guard.make_plan(91, 3.9, 8, 6.7)
+        self.assertEqual(plan["state"], "stop")
+        continued = quota_guard.make_plan(91, 3.9, 8, 6.7, user_authorized_continue=True)
+        self.assertEqual(continued["state"], "conserve")
+        self.assertEqual(continued["max_concurrent_agents"], 0)
 
     def test_full_budget_does_not_enable_fast_without_urgency(self):
         plan = quota_guard.make_plan(100, 5, 100, 120)

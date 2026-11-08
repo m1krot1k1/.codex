@@ -4,7 +4,7 @@ English documentation. [Русская версия →](README.md)
 
 A set of Codex Desktop/CLI instructions, roles, skills, and a local plugin: model tier and parallelism follow the task, both usage windows and reset timers inform costly phases, and a separate gate prevents accidental comparative reviews when reserves are low or unknown.
 
-> **Honest boundary:** this system helps conserve the shared Plus allowance and pauses work before optional stages become risky. It cannot guarantee zero chance of exhaustion: usage is shared across Codex and other supported ChatGPT experiences, and the cost of a future task is not known exactly. The only way to guarantee no usage is to make no requests.
+> **Honest boundary:** this system helps conserve the shared Plus allowance by switching to a conservative mode when reserves are low. A low weekly balance alone does not stop useful single-agent work, but future task usage is unknown and the allowance is shared across Codex and other supported ChatGPT experiences. The only way to guarantee no usage is to make no requests.
 
 ## What is included
 
@@ -38,7 +38,7 @@ At the beginning of a task and before each costly phase, the coordinator:
 
 Even at 100%, the system plans across the time until the weekly reset. Luna Medium remains the default; parallel agents, optional reviews, and escalations require a clear quality or time benefit. Dividing weekly usage remaining by days until reset is only an even-pacing reference. It is **not** a prediction of model or task cost.
 
-When usage is low and the limiting window resets soon, non-urgent work gets a checkpoint and waits. If the user explicitly asks to continue, the coordinator may do the minimum necessary step. When usage is unknown, the closed mode is Luna Medium, at most one subagent, no Astra, no parallel runs, and Fast off.
+When weekly usage is low but above the lower reserve, useful work continues in a conservative, single-agent Luna mode; a low weekly percentage or an approaching weekly reset alone does not pause the task. The short window is considered separately: if it is nearly empty, resets soon, and the task can wait, the coordinator may checkpoint until the short-window reset. When usage is unknown, the closed mode is Luna Medium, at most one subagent, no Astra, no parallel runs, and Fast off.
 
 ### Reserve thresholds
 
@@ -46,8 +46,9 @@ When usage is low and the limiting window resets soon, non-urgent work gets a ch
 | --- | --- |
 | 50% or less | Remove optional reviewer and Astra; Luna remains the normal choice. |
 | 35% or less | Do not start new agent stages. |
-| 25% or less | Finish only a short safe step, checkpoint, and wait for reset unless the user explicitly directs continuation. |
-| 10% or less | Do not run optional model stages. |
+| Weekly balance at 25% or less | Continue useful single-agent work on Luna while both windows remain above 10%; no new agents, Fast, Astra, or optional reviews. Do not pause solely because the weekly balance is low. |
+| Short-window balance at 25% or less | If the reset is near and the specific task can wait, checkpoint until the short-window reset. Otherwise continue only necessary solo work. |
+| Either window at 10% or less | Stop new costly stages and checkpoint; continue only on the user's explicit instruction, without agents, Fast, or optional runs. |
 
 Use the more constrained visible window. These thresholds are not estimates of the cost of a particular task or agent.
 
@@ -60,7 +61,7 @@ In Codex, Fast is the separate UI toggle labeled “1.5× speed / More usage.”
 - the time saved justifies the extra usage;
 - it is limited to one bounded phase and turned off afterward.
 
-Fast stays off when weekly usage is low or unknown, the task can wait, or the limiting window is close to reset. This package does not derive a fixed usage multiplier from “1.5×”: the interface indicates faster speed and more usage, while actual task usage depends on context and agent work.
+Fast stays off when weekly usage is low or unknown, the task can wait, or the limiting window is close to reset. This package does not derive a fixed usage multiplier from “1.5×”: the interface indicates faster speed and more usage, while actual task usage depends on context and agent work. The system does not try to empty the short-window allowance for its own sake; it uses it only for useful work while weekly allowance remains.
 
 The installer preserves `service_tier = "default"` and does not control the UI. In Codex Desktop, use the lightning toggle; in versions that expose the command, `/fast` is also available. `scripts/quota_guard.py` can flag Fast for manual consideration but never turns it on. If the current agent has no supported UI action or command, it should name the phase where Fast is justified and ask the user to enable it, then remind them to turn it off afterward.
 
@@ -174,13 +175,12 @@ python3 scripts/quota_guard.py \
   --weekly-remaining 24 --weekly-reset-in 6h
 ```
 
-For this example, the default recommendation is to pause until the weekly reset, with Fast off. To model an explicit user request to continue:
+For this example, the recommendation is to continue useful coordinator work on Luna, without new agents and with Fast off. A low weekly balance does not block work while both windows remain above 10%. For comparison, a weekly balance of 8% stops new costly stages:
 
 ```bash
 python3 scripts/quota_guard.py \
   --primary-remaining 58 --primary-reset-in 3h \
-  --weekly-remaining 24 --weekly-reset-in 6h \
-  --user-authorized-continue
+  --weekly-remaining 8 --weekly-reset-in 6h
 ```
 
 `--urgent` means the task cannot reasonably wait and latency has practical value. Even then, the script only marks Fast as a manual candidate when **both** windows are above the reserve. `--critical` marks a high-impact decision; recommending Sol also requires `--sol-authorized`, meaning the user confirmed sufficient remaining usage. No flag purchases usage, redeems a reset, or launches an agent.

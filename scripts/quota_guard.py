@@ -88,19 +88,16 @@ def make_plan(
     )
 
     if weekly.remaining <= 10 or primary.remaining <= 10:
-        plan.update(state="stop", max_concurrent_agents=0)
-        plan["action"] = "Сохранить checkpoint и остановить необязательные затратные этапы. Продолжать только по прямому указанию пользователя."
-        plan["reasons"].append("В одном из окон осталось 10% или меньше.")
-        if saved_reset_available:
-            plan["reasons"].append("Доступен сохранённый reset: предложить его пользователю, но не применять без явного решения.")
-        return plan
-
-    if weekly.remaining <= 25 and not user_authorized_continue:
-        plan.update(state="pause", max_concurrent_agents=0)
-        plan["action"] = "Завершить только короткий безопасный шаг, сохранить checkpoint и дождаться недельного сброса."
-        plan["reasons"].append("Недельный остаток достиг порога 25% или ниже.")
-        if saved_reset_available:
-            plan["reasons"].append("Доступен сохранённый reset: сообщить о нём и спросить пользователя перед применением.")
+        if user_authorized_continue:
+            plan.update(state="conserve", max_concurrent_agents=0)
+            plan["action"] = "Пользователь явно попросил продолжить: выполнить только необходимую одиночную работу на Luna; без агентов, Fast и необязательных прогонов."
+            plan["reasons"].append("Остаток одного из окон не выше 10%; продолжение разрешено прямым указанием пользователя.")
+        else:
+            plan.update(state="stop", max_concurrent_agents=0)
+            plan["action"] = "Сохранить checkpoint и отложить новые модельно-затратные этапы до сброса ограничивающего окна."
+            plan["reasons"].append("В одном из окон осталось 10% или меньше.")
+            if saved_reset_available:
+                plan["reasons"].append("Доступен сохранённый reset: предложить его пользователю, но не применять без явного решения.")
         return plan
 
     if primary.remaining <= 25 and primary.reset_hours <= 1 and not urgent:
@@ -109,17 +106,11 @@ def make_plan(
         plan["reasons"].append("В коротком окне мало остатка, сброс будет в течение часа.")
         return plan
 
-    if weekly.remaining <= 35 and weekly.reset_hours <= 12 and not urgent and not user_authorized_continue:
-        plan.update(state="wait_for_reset", max_concurrent_agents=0)
-        plan["action"] = "Если задача терпит, сохранить checkpoint и продолжить после недельного сброса; не тратить остаток только потому, что сброс близко."
-        plan["reasons"].append("Недельный остаток мал, сброс будет в течение 12 часов.")
-        return plan
-
     plan["state"] = "conserve" if min(primary.remaining, weekly.remaining) <= 50 else "balanced"
 
     if min(primary.remaining, weekly.remaining) <= 35:
         plan["max_concurrent_agents"] = 0
-        plan["action"] = "Продолжить только необходимый одиночный шаг; не начинать новый этап с агентом."
+        plan["action"] = "Продолжать полезную работу координатором на Luna Medium; не запускать новых агентов и необязательных этапов. Перед следующим затратным этапом обновить оба окна."
         plan["reasons"].append("В одном из окон осталось не более 35%.")
     elif min(primary.remaining, weekly.remaining) <= 50:
         plan["max_concurrent_agents"] = 1
@@ -129,6 +120,11 @@ def make_plan(
         plan["max_concurrent_agents"] = 2
         plan["action"] = "Начать с Luna Medium. Запускать до двух агентов одновременно только для независимой полезной работы; сохранить недельный запас для следующих задач."
         plan["reasons"].append("Даже полный остаток — общий бюджет на всё время до недельного сброса.")
+
+    if weekly.remaining <= 25:
+        plan["reasons"].append(
+            "Недельный остаток 25% или ниже сам по себе не останавливает полезную одиночную работу: короткое окно — отдельный лимит, а недельный запас нужно расходовать экономно до его сброса."
+        )
 
     if critical and sol_authorized and min(primary.remaining, weekly.remaining) > 50:
         plan.update(model="gpt-6.1-sol", reasoning="high")
@@ -145,7 +141,7 @@ def make_plan(
         plan["reasons"].append("Fast выключен: нет срочности или подтверждённого запаса в обоих окнах.")
 
     if weekly.reset_hours <= 12:
-        plan["reasons"].append("Недельный сброс близко: это меняет решение ждать или продолжать, но не оправдывает лишний расход.")
+        plan["reasons"].append("Недельный сброс близко: не останавливать полезную работу автоматически и не ускорять расход только из-за близкого сброса; checkpoint допустим, если конкретная задача может подождать.")
     if primary.reset_hours <= 1:
         plan["reasons"].append("Сброс короткого окна близко, но недельное окно остаётся отдельным ограничением.")
     return plan
