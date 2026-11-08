@@ -38,7 +38,7 @@ def main() -> int:
         if not role.get("description") or not role.get("developer_instructions"):
             raise ValueError(f"incomplete role: {path}")
     quota = (ROOT / "AGENTS.md").read_text()
-    for phrase in ("get_usage_limits", "100% остатка", "Fast", "время до сброса", "Низкий недельный процент сам по себе не ограничивает параллелизм"):
+    for phrase in ("get_usage_limits", "100% остатка", "Fast", "время до сброса", "сброс будет в течение 2 часов"):
         if phrase not in quota:
             raise ValueError(f"AGENTS.md is missing required policy text: {phrase}")
     for skill_dir in sorted((ROOT / "skills").iterdir()):

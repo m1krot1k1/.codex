@@ -62,8 +62,29 @@ class QuotaGuardTests(unittest.TestCase):
         plan = quota_guard.make_plan(91, 3.9, 8, 6.7)
         self.assertEqual(plan["state"], "stop")
         continued = quota_guard.make_plan(91, 3.9, 8, 6.7, user_authorized_continue=True)
-        self.assertEqual(continued["state"], "conserve")
-        self.assertEqual(continued["max_concurrent_agents"], 0)
+        self.assertEqual(continued["state"], "balanced")
+        self.assertEqual(continued["max_concurrent_agents"], 2)
+
+    def test_near_weekly_reset_below_ten_uses_available_short_window(self):
+        plan = quota_guard.make_plan(92, 1.5, 9, 1.5, urgent=True)
+        self.assertEqual(plan["state"], "balanced")
+        self.assertEqual(plan["max_concurrent_agents"], 2)
+        self.assertEqual(plan["fast"], "eligible_for_manual_consideration")
+        self.assertTrue(any("сброс будет в течение 2 часов" in reason for reason in plan["reasons"]))
+
+    def test_far_weekly_floor_stops_without_explicit_user_override(self):
+        plan = quota_guard.make_plan(92, 1.5, 9, 6)
+        self.assertEqual(plan["state"], "stop")
+
+    def test_explicit_weekly_override_allows_short_window_and_fast_candidate(self):
+        plan = quota_guard.make_plan(92, 1.5, 9, 6, urgent=True, user_authorized_continue=True)
+        self.assertEqual(plan["state"], "balanced")
+        self.assertEqual(plan["max_concurrent_agents"], 2)
+        self.assertEqual(plan["fast"], "eligible_for_manual_consideration")
+
+    def test_near_weekly_reset_does_not_override_low_short_window(self):
+        plan = quota_guard.make_plan(8, 1.5, 9, 1.5)
+        self.assertEqual(plan["state"], "stop")
 
     def test_low_short_window_limits_agents_even_when_weekly_is_full(self):
         plan = quota_guard.make_plan(30, 2, 95, 72)
@@ -105,6 +126,12 @@ class QuotaGuardTests(unittest.TestCase):
     def test_near_short_reset_waits_when_window_is_low(self):
         plan = quota_guard.make_plan(20, 0.5, 90, 48)
         self.assertEqual(plan["state"], "wait_for_reset")
+
+    def test_explicit_continue_uses_short_window_even_when_it_is_low(self):
+        plan = quota_guard.make_plan(8, 0.5, 90, 48, user_authorized_continue=True)
+        self.assertEqual(plan["state"], "conserve")
+        self.assertEqual(plan["max_concurrent_agents"], 0)
+        self.assertEqual(plan["fast"], "off")
 
 
 if __name__ == "__main__":

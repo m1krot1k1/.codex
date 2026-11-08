@@ -38,7 +38,7 @@ At the beginning of a task and before each costly phase, the coordinator:
 
 Even at 100%, the system plans across the time until the weekly reset. Luna Medium remains the default; parallel agents, optional reviews, and escalations require a clear quality or time benefit. Dividing weekly usage remaining by days until reset is only an even-pacing reference. It is **not** a prediction of model or task cost.
 
-The short window sets the current work pace and available parallelism: when it has room, useful stages and needed independent agents may run even if the weekly balance is low. The weekly window guides planning until its reset and becomes a stop boundary at 10% remaining; below that, work pauses to avoid hitting the limit. If the short window is nearly empty, resets soon, and the task can wait, the coordinator may checkpoint until its reset. When usage is unknown, the closed mode is Luna Medium, at most one subagent, no Astra, no parallel runs, and Fast off.
+The short window sets the current work pace and available parallelism: when it has room, useful stages and needed independent agents may run even if the weekly balance is low. If weekly balance is at or below 10% but resets within 2 hours, the guard continues useful work according to short-window headroom. If the reset is farther away, it pauses unless the user explicitly directs it to continue despite the weekly threshold. If the short window is nearly empty, resets soon, and the task can wait, the coordinator may checkpoint until its reset. When usage is unknown, the closed mode is Luna Medium, at most one subagent, no Astra, no parallel runs, and Fast off.
 
 ### Reserve thresholds
 
@@ -48,20 +48,22 @@ The short window sets the current work pace and available parallelism: when it h
 | Short-window balance at 35% or less | Do not start new agent stages until the short window resets. |
 | Weekly balance at 25% or less | Does not by itself restrict agents, model choice, or required checks; track the reset, refresh before costly stages, and continue according to short-window headroom. |
 | Short-window balance at 25% or less | If the reset is near and the specific task can wait, checkpoint until the short-window reset. Otherwise continue only necessary work. |
-| Either window at 10% or less | Stop new costly stages and checkpoint; continue only on the user's explicit instruction, without agents, Fast, or optional runs. |
+| Weekly balance at 10% or less, reset within 2 hours | Do not pause; use short-window routing. |
+| Weekly balance at 10% or less, reset more than 2 hours away | Stop costly stages unless the user explicitly directs continuation despite the weekly threshold. |
+| Short-window balance at 10% or less | Stop new costly stages unless the user explicitly directs continuation; obey Codex's actual limit. |
 
-Use the short window for work and concurrency thresholds. The weekly window sets the planning horizon and a hard reserve at 10%; a low weekly percentage alone should not leave short-window capacity unused when useful work is available.
+Use the short window for work and concurrency thresholds. The weekly window sets the planning horizon; when it is close to reset, use short-window headroom for useful work. An explicit user direction to continue also overrides the weekly pause when the reset is farther away. The guard cannot bypass Codex's actual rate limit.
 
 ## Fast is a separate speed setting, not a model
 
 In Codex, Fast is the separate UI toggle labeled “1.5× speed / More usage.” It is **not enabled automatically**, including at 100% remaining or just before a reset. Consider it only when:
 
 - the task is urgent or latency materially matters;
-- usage is visible, short-window balance is above 50%, and weekly balance is above 10%;
+- usage is visible, short-window balance is above 50%, and the weekly balance is above 10%, resets within 2 hours, or is explicitly overridden by the user;
 - the time saved justifies the extra usage;
 - it is limited to one bounded phase and turned off afterward.
 
-Fast stays off when usage is unknown, the task can wait, or short-window balance is 50% or less. Low weekly usage above 10% alone does not block Fast when short-window headroom is sufficient and speed is justified. This package does not derive a fixed usage multiplier from “1.5×”: the interface indicates faster speed and more usage, while actual task usage depends on context and agent work. The system does not try to empty the short-window allowance for its own sake; it uses it only for useful work.
+Fast stays off when usage is unknown, the task can wait, or short-window balance is 50% or less. If weekly reset is near or the user explicitly overrides its threshold, low weekly usage does not block Fast when short-window headroom is sufficient and speed is justified. This package does not derive a fixed usage multiplier from “1.5×”: the interface indicates faster speed and more usage, while actual task usage depends on context and agent work. The system does not try to empty the short-window allowance for its own sake; it uses it only for useful work.
 
 The installer preserves `service_tier = "default"` and does not control the UI. In Codex Desktop, use the lightning toggle; in versions that expose the command, `/fast` is also available. `scripts/quota_guard.py` can flag Fast for manual consideration but never turns it on. If the current agent has no supported UI action or command, it should name the phase where Fast is justified and ask the user to enable it, then remind them to turn it off afterward.
 
@@ -175,7 +177,7 @@ python3 scripts/quota_guard.py \
   --weekly-remaining 24 --weekly-reset-in 6h
 ```
 
-For this example, the recommendation is to continue useful work on Luna; short-window headroom permits up to two independent agents when they improve speed or quality. A low weekly balance above 10% does not by itself block these stages. A weekly balance of 8% stops new costly stages:
+For this example, the recommendation is to continue useful work on Luna; short-window headroom permits up to two independent agents when they improve speed or quality. A low weekly balance above 10% does not by itself block these stages. If the weekly balance is 8% and its reset is more than two hours away, new costly stages stop unless the user explicitly directs continuation:
 
 ```bash
 python3 scripts/quota_guard.py \
@@ -183,7 +185,15 @@ python3 scripts/quota_guard.py \
   --weekly-remaining 8 --weekly-reset-in 6h
 ```
 
-`--urgent` means the task cannot reasonably wait and latency has practical value. Then the script marks Fast as a manual candidate when short-window balance is above 50% and weekly balance is above its 10% reserve. `--critical` marks a high-impact decision; recommending Sol also requires `--sol-authorized`, meaning the user confirmed sufficient remaining usage. No flag purchases usage, redeems a reset, or launches an agent.
+If weekly usage is 9% but resets in 1h 31m, the system continues according to short-window headroom:
+
+```bash
+python3 scripts/quota_guard.py \
+  --primary-remaining 92 --primary-reset-in 3h \
+  --weekly-remaining 9 --weekly-reset-in 1h31m
+```
+
+`--user-authorized-continue` passes the user's explicit direction to ignore the weekly threshold; agent count still follows the short window. `--urgent` means the task cannot reasonably wait and latency has practical value. Then the script marks Fast as a manual candidate when short-window balance is above 50% and weekly balance is above 10%, resets within 2 hours, or is explicitly overridden. `--critical` marks a high-impact decision; recommending Sol also requires `--sol-authorized`, meaning the user confirmed sufficient remaining usage. No flag purchases usage, redeems a reset, or launches an agent.
 
 ### Example Codex prompts
 

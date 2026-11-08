@@ -39,7 +39,7 @@ def _context(now: int | None = None) -> str:
             f"short window {short:g}% remaining (reset in {_duration(short_reset - current)}), "
             f"weekly window {weekly:g}% remaining (reset in {_duration(weekly_reset - current)}). "
             "Refresh the official usage meter before each costly phase; shared usage may have changed. "
-            "Fast stays off."
+            "Fast is off by default; consider it manually for an explicitly urgent step when the quota guard permits it."
             + (" A saved reset is reported; never apply it automatically." if data.get("savedResetAvailable") else "")
         )
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):

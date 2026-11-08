@@ -44,6 +44,7 @@ class QuotaHookTests(unittest.TestCase):
             self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "SessionStart")
             self.assertIn("short window 69%", context)
             self.assertIn("weekly window 21%", context)
+            self.assertIn("consider it manually for an explicitly urgent step", context)
             self.assertIn("never apply it automatically", context)
             self.assertNotIn("must-not-be-read-or-output", context)
 
