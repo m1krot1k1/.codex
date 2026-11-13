@@ -5,8 +5,12 @@ from __future__ import annotations
 
 import sys
 import json
-import tomllib
 from pathlib import Path
+
+try:
+    import tomllib
+except ModuleNotFoundError:
+    sys.exit("validation failed: Python 3.11 or newer is required; select a newer Python interpreter")
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED = {

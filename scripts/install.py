@@ -10,9 +10,13 @@ import re
 import shutil
 import sys
 import tempfile
-import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
+
+try:
+    import tomllib
+except ModuleNotFoundError:
+    sys.exit("install failed: Python 3.11 or newer is required; select a newer Python interpreter")
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MANAGED_AGENT_SETTINGS = tomllib.loads((REPO_ROOT / "config" / "agents.toml").read_text())["agents"]
@@ -62,12 +66,54 @@ def merge_agents_config(source: str) -> str:
 
 def atomic_write(path: Path, content: bytes, mode: int | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as temp:
-        temp.write(content)
-        temp_path = Path(temp.name)
-    if mode is not None:
-        temp_path.chmod(mode)
-    temp_path.replace(path)
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as temp:
+            temp_path = Path(temp.name)
+            temp.write(content)
+        if mode is not None:
+            temp_path.chmod(mode)
+        temp_path.replace(path)
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+
+
+def install_changes(home: Path, changed: dict[Path, bytes]) -> Path | None:
+    """Back up all existing targets first and roll back completed writes on errors."""
+    existing = [path for path in changed if path.exists()]
+    backup_dir = None
+    if existing:
+        backup_root = home / "backups" / "adaptive-codex-install"
+        backup_root.mkdir(parents=True, exist_ok=True)
+        prefix = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-")
+        backup_dir = Path(tempfile.mkdtemp(prefix=prefix, dir=backup_root))
+        for path in existing:
+            backup = backup_dir / path.relative_to(home)
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, backup)
+
+    written: list[Path] = []
+    try:
+        for path, content in changed.items():
+            mode = path.stat().st_mode & 0o777 if path.exists() else None
+            atomic_write(path, content, mode)
+            written.append(path)
+    except OSError as exc:
+        failures = []
+        for path in reversed(written):
+            try:
+                if path in existing:
+                    backup = backup_dir / path.relative_to(home)
+                    atomic_write(path, backup.read_bytes(), backup.stat().st_mode & 0o777)
+                else:
+                    path.unlink(missing_ok=True)
+            except OSError as rollback_exc:
+                failures.append(f"{path}: {rollback_exc}")
+        if failures:
+            raise OSError(f"{exc}; rollback incomplete ({'; '.join(failures)}); backups: {backup_dir}") from exc
+        raise OSError(f"{exc}; completed writes rolled back; backups: {backup_dir}") from exc
+    return backup_dir
 
 
 def main() -> int:
@@ -116,21 +162,11 @@ def main() -> int:
             print(f"- {path}")
         return 0
 
-    backup_dir = home / "backups" / "adaptive-codex-install" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    for path in changed:
-        if path.exists():
-            relative = path.relative_to(home)
-            backup = backup_dir / relative
-            backup.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(path, backup)
-
-    for path, content in changed.items():
-        mode = path.stat().st_mode & 0o777 if path.exists() else None
-        atomic_write(path, content, mode)
+    backup_dir = install_changes(home, changed)
 
     tomllib.loads(config_path.read_text())
     print(f"Installed {len(changed)} managed instruction, role, skill, and tool file(s) under {home}")
-    if backup_dir.exists():
+    if backup_dir is not None:
         print(f"Backups: {backup_dir}")
     return 0
 

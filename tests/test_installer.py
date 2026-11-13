@@ -5,10 +5,15 @@ import sys
 import tempfile
 import tomllib
 import unittest
+import importlib.util
 from pathlib import Path
+from unittest import mock
 
 REPO = Path(__file__).resolve().parents[1]
 INSTALLER = REPO / "scripts" / "install.py"
+spec = importlib.util.spec_from_file_location("adaptive_installer", INSTALLER)
+installer = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(installer)
 
 
 class InstallerTests(unittest.TestCase):
@@ -69,6 +74,42 @@ class InstallerTests(unittest.TestCase):
             second = subprocess.run(command, check=True, capture_output=True, text=True)
             self.assertIn("Already up to date", second.stdout)
             self.assertFalse((home / "backups").exists())
+
+    def test_failed_write_restores_existing_files_and_removes_new_files(self):
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp)
+            old = home / "existing"
+            new = home / "new"
+            old.write_text("original")
+            original_write = installer.atomic_write
+            calls = 0
+
+            def fail_once(path, content, mode=None):
+                nonlocal calls
+                calls += 1
+                if calls == 3:
+                    raise OSError("simulated failure")
+                original_write(path, content, mode)
+
+            with mock.patch.object(installer, "atomic_write", side_effect=fail_once):
+                with self.assertRaisesRegex(OSError, "completed writes rolled back"):
+                    installer.install_changes(home, {old: b"changed", new: b"new", home / "failure": b"x"})
+            self.assertEqual(old.read_text(), "original")
+            self.assertFalse(new.exists())
+            backups = list((home / "backups" / "adaptive-codex-install").glob("*/existing"))
+            self.assertEqual(len(backups), 1)
+            self.assertEqual(backups[0].read_text(), "original")
+
+    def test_backups_do_not_collide_on_repeated_installs(self):
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp)
+            target = home / "existing"
+            target.write_text("first")
+            first = installer.install_changes(home, {target: b"second"})
+            second = installer.install_changes(home, {target: b"third"})
+            self.assertNotEqual(first, second)
+            self.assertEqual((first / "existing").read_text(), "first")
+            self.assertEqual((second / "existing").read_text(), "second")
 
 
 if __name__ == "__main__":

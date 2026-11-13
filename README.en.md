@@ -72,11 +72,11 @@ The installer preserves `service_tier = "default"` and does not control the UI. 
 | Project | Status | Role in this setup |
 | --- | --- | --- |
 | Codex skills and lifecycle hooks | Included | `adaptive-codex` defines the workflow; the SessionStart plugin reads only a short-lived sanitized quota snapshot and reminds the agent about reset times. |
-| [MCO](https://github.com/mco-org/mco), MIT | CLI 0.13.0 installed separately; its bundled skill is not installed, and calls go only through `mco_gate.py` | Optional read-only comparison for rare high-risk changes. The gate requires fresh usage, more than 50% in both windows, an explicitly chosen team of 2–3 providers, a narrow in-repository scope, and a separate `--execute`. |
+| [MCO](https://github.com/mco-org/mco), MIT | Optional CLI, installed separately; its bundled skill is not required, and calls go through `mco_gate.py` | Optional read-only comparison for rare high-risk changes. The gate requires fresh usage, more than 50% in both windows, an explicitly chosen team of 2–3 providers, a narrow in-repository scope, and a separate `--execute`. |
 | Official Codex app-server/SDK | Skill guidance is included; no persistent service is deployed | Useful when an application truly needs to create, resume, and monitor Codex threads programmatically. For everyday coding, built-in threads and `codex resume` are simpler and more economical. |
 | A separate persistent orchestrator with its own workers | Not added | Codex already provides agent branches, worktrees, and resume. A second manager would duplicate these, add background processes, and make extra model calls. |
 
-MCO does not save usage: each selected provider does its own work, and the `codex` provider uses the account’s shared allowance. Provider teams are never inferred, and MCO is not called for normal tasks. CLI 0.13.0 was verified and installed separately, without the additional skill that could bypass the gate:
+MCO does not save usage: each selected provider does its own work, and the `codex` provider uses the account’s shared allowance. Provider teams are never inferred, and MCO is not called for normal tasks. If needed, CLI 0.13.0 can be installed separately, without the additional skill that could bypass the gate:
 
 ```bash
 npm install --global @tt-a1i/mco@0.13.0 --ignore-scripts --no-audit --no-fund
@@ -125,13 +125,14 @@ If a model is not available for the current account/version, do not substitute a
 
 ## Quick start
 
-Requires Python 3.11+ (standard library) and Codex Desktop or CLI. Clone the private repository into a normal working folder, then run:
+Requires Python 3.11+ (standard library) and Codex Desktop or CLI. Check the selected interpreter's version: macOS system `python3` may be older. The example uses `python3.11`; substitute the path to any suitable version you have. Clone the repository into a normal working folder, then run:
 
 ```bash
-python3 scripts/validate.py
-python3 -m unittest discover -s tests -v
-python3 scripts/install.py --dry-run
-python3 scripts/install.py
+python3.11 --version
+python3.11 scripts/validate.py
+python3.11 -m unittest discover -s tests -v
+python3.11 scripts/install.py --dry-run
+python3.11 scripts/install.py
 ```
 
 To add the plugin to Codex Desktop/CLI from a local clone of the private repository:
@@ -149,7 +150,7 @@ The installer:
 - installs three skills into `$CODEX_HOME/skills/` and three helper scripts into `$CODEX_HOME/tools/adaptive-codex/`;
 - adds/updates only managed `[agents]` keys in `config.toml`;
 - preserves all other settings and user values;
-- creates backups of changed files before replacement at `backups/adaptive-codex-install/<UTC timestamp>/`;
+- creates a separate backup of changed files under `backups/adaptive-codex-install/` before replacement; on a write error it attempts to roll back completed changes and reports the backup location;
 - does not touch authentication, history, secrets, model settings, `service_tier`, working repositories, or projects.
 
 The plugin is installed separately by the commands above, so the user can see when it is connected and review its hook. The regular installer does not add hooks directly to `config.toml`.
