@@ -1,4 +1,4 @@
-# `.codex` — adaptive development with quota awareness
+# Codex Tempo — adaptive workflow guidance for Codex
 
 English documentation. [Русская версия →](README.md)
 
@@ -153,6 +153,15 @@ The installer:
 - does not touch authentication, history, secrets, model settings, `service_tier`, working repositories, or projects.
 
 `install.sh` connects the plugin separately from installing instructions and does not add hooks directly to `config.toml`. If setup stops while connecting the plugin, run `./install.sh` again; completed steps are skipped or safely repeated.
+
+### Update, uninstall, and catalog package
+
+- `./install.sh --check-updates` checks `origin/main` without changing the checkout.
+- `./install.sh --update` fast-forwards a clean `main` checkout and reruns installation; local changes block the update.
+- `./install.sh --uninstall` previews managed files, backs them up, and asks for confirmation. Marketplace plugin removal has a separate confirmation.
+- `./install.sh --package` builds a skills-only ZIP under `dist/`; lifecycle hooks are excluded.
+
+The catalog plugin is named Codex Tempo. The local marketplace keeps the SessionStart hook; the catalog package has a separate onboarding skill and square SVG icon.
 
 ### Store a fresh usage snapshot
 

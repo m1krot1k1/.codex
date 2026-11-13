@@ -9,6 +9,7 @@ threads/
 logs/
 *.log
 backups/
+dist/
 *.sqlite
 *.db
 __pycache__/

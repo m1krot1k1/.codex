@@ -64,6 +64,17 @@ def main() -> int:
         raise ValueError("adaptive-quota is missing from the local plugin marketplace")
     if (plugin_root / "skills" / "adaptive-codex" / "SKILL.md").read_bytes() != (ROOT / "skills" / "adaptive-codex" / "SKILL.md").read_bytes():
         raise ValueError("bundled and global adaptive-codex skills must stay in sync")
+    catalog_root = ROOT / "plugins" / "codex-tempo"
+    catalog = json.loads((catalog_root / ".codex-plugin" / "plugin.json").read_text())
+    if catalog.get("name") != "codex-tempo" or catalog.get("skills") != "./skills/":
+        raise ValueError("Codex Tempo catalog manifest must be skills-only")
+    if catalog.get("interface", {}).get("logo") != "./assets/icon.svg" or catalog["interface"].get("composerIcon") != "./assets/icon.svg":
+        raise ValueError("Codex Tempo manifest must include its square listing icon")
+    if "hooks" in catalog:
+        raise ValueError("Codex catalog package must not include lifecycle hooks")
+    for asset in ("assets/icon.svg", "skills/codex-tempo-start/SKILL.md"):
+        if not (catalog_root / asset).is_file():
+            raise ValueError(f"Codex Tempo catalog package is missing {asset}")
     print(f"Validated {len(EXPECTED)} agent roles, {len(list((ROOT / 'skills').iterdir()))} skills, plugin hooks, agent defaults, and quota/reset/Fast policy.")
     return 0
 

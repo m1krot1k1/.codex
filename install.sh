@@ -9,6 +9,7 @@ fail() {
     exit 1
 }
 
+MODE=${1:-install}
 PYTHON_BIN=${PYTHON:-}
 for candidate in "$PYTHON_BIN" python3.14 python3.13 python3.12 python3.11 python3; do
     [ -n "$candidate" ] || continue
@@ -18,6 +19,28 @@ for candidate in "$PYTHON_BIN" python3.14 python3.13 python3.12 python3.11 pytho
     fi
 done
 [ -n "$PYTHON_BIN" ] || fail 'нужен Python 3.11+ с tomllib. Установите Python и повторите ./install.sh.'
+
+case "$MODE" in
+    --check-updates)
+        exec "$PYTHON_BIN" "$ROOT/scripts/update.py"
+        ;;
+    --update)
+        "$PYTHON_BIN" "$ROOT/scripts/update.py" --apply
+        MODE=install
+        ;;
+    --uninstall)
+        "$PYTHON_BIN" "$ROOT/scripts/uninstall.py"
+        printf 'Удалить также plugin adaptive-quota из Codex? [y/N] '
+        IFS= read -r answer || answer=
+        case "$answer" in y|Y|yes|YES|д|Д|да|ДА) codex plugin remove adaptive-quota@adaptive-codex;; esac
+        exit 0
+        ;;
+    --package)
+        exec "$PYTHON_BIN" "$ROOT/scripts/package_catalog.py"
+        ;;
+    install) ;;
+    *) fail 'режимы: без аргумента, --check-updates, --update, --uninstall, --package' ;;
+esac
 
 command -v codex >/dev/null 2>&1 || fail 'Codex CLI не найден. Установите или запустите Codex Desktop с CLI и повторите.'
 
@@ -49,7 +72,8 @@ codex plugin marketplace add "$ROOT"
 
 STEP='установки плагина'
 if codex plugin list 2>/dev/null | awk '$1 == "adaptive-quota@adaptive-codex" && $2 ~ /installed/ && $3 == "enabled" { found=1 } END { exit !found }'; then
-    printf 'Плагин adaptive-quota уже установлен и включён.\n'
+    printf 'Плагин adaptive-quota уже установлен; обновляю локальный пакет.\n'
+    codex plugin add adaptive-quota@adaptive-codex
 else
     codex plugin add adaptive-quota@adaptive-codex
 fi

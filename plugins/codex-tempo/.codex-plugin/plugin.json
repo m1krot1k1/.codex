@@ -1,0 +1,27 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "codex-tempo",
+  "version": "1.0.0",
+  "description": "Adaptive workflow guidance for Codex: choose an efficient pace, coordinate agents deliberately, and keep usage limits in view.",
+  "author": { "name": "m1krot1k1" },
+  "homepage": "https://github.com/m1krot1k1/codex-tempo",
+  "repository": "https://github.com/m1krot1k1/codex-tempo",
+  "keywords": ["codex", "workflow", "agents", "quota", "productivity"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex Tempo",
+    "shortDescription": "Adaptive workflow guidance for Codex",
+    "longDescription": "Helps Codex choose a practical workflow for each task, use agents deliberately, verify changes, and account for short and weekly usage windows.",
+    "developerName": "m1krot1k1",
+    "category": "Developer Tools",
+    "capabilities": [],
+    "logo": "./assets/icon.svg",
+    "composerIcon": "./assets/icon.svg",
+    "brandColor": "#13D7C0"
+  },
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/codex-tempo-start/SKILL.md"
+    }
+  }
+}
