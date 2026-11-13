@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "codex-tempo",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Adaptive workflow guidance for Codex: choose an efficient pace, coordinate agents deliberately, and keep usage limits in view.",
   "author": { "name": "m1krot1k1" },
   "homepage": "https://github.com/m1krot1k1/codex-tempo",
@@ -10,18 +10,47 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex Tempo",
-    "shortDescription": "Adaptive workflow guidance for Codex",
+    "shortDescription": "Workflow guidance for Codex",
     "longDescription": "Helps Codex choose a practical workflow for each task, use agents deliberately, verify changes, and account for short and weekly usage windows.",
-    "developerName": "m1krot1k1",
     "category": "Developer Tools",
     "capabilities": [],
-    "logo": "./assets/icon.svg",
-    "composerIcon": "./assets/icon.svg",
-    "brandColor": "#13D7C0"
+    "logo": "./assets/icon.png",
+    "composerIcon": "./assets/icon.png",
+    "brandColor": "#13D7C0",
+    "websiteURL": "https://github.com/m1krot1k1/codex-tempo",
+    "supportURL": "https://github.com/m1krot1k1/codex-tempo/issues",
+    "privacyPolicyURL": "https://github.com/m1krot1k1/codex-tempo/blob/main/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/m1krot1k1/codex-tempo/blob/main/TERMS.md",
+    "defaultPrompt": [
+      "Help me choose the smallest effective workflow for this coding task.",
+      "Help me decide if this task benefits from an agent and define safe boundaries.",
+      "Plan this work using both Codex usage windows and their reset times."
+    ]
   },
   "extensions": {
     "com.openai": {
-      "onboardingSkill": "./skills/codex-tempo-start/SKILL.md"
+      "onboardingSkill": "./skills/codex-tempo-start/SKILL.md",
+      "review": {
+        "prompts": [
+          "Help me choose a practical workflow for this coding task and say what to verify.",
+          "This change spans several files. Help me decide whether an agent would improve the work and define a safe scope.",
+          "Before starting this larger change, help me plan around my short and weekly Codex usage windows."
+        ]
+      },
+      "publication": {
+        "release_notes": "First public release of Codex Tempo's workflow skill and onboarding guide for task-sized effort, quota-aware planning, deliberate delegation, and verification.",
+        "translations": {
+          "ru-RU": {
+            "shortDescription": "Рабочий процесс для Codex",
+            "longDescription": "Помогает Codex выбрать подходящий процесс для задачи, обдуманно подключать агентов, проверять изменения и учитывать короткое и недельное окна использования.",
+            "defaultPrompt": [
+              "Помоги выбрать минимально достаточный процесс для этой задачи по коду.",
+              "Нужен ли для этой задачи агент? Помоги задать ему безопасную и узкую область работы.",
+              "Помоги спланировать работу с учётом короткого и недельного окон Codex и времени сброса."
+            ]
+          }
+        }
+      }
     }
   }
 }

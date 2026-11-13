@@ -161,7 +161,7 @@ The installer:
 - `./install.sh --uninstall` previews managed files, backs them up, and asks for confirmation. Marketplace plugin removal has a separate confirmation.
 - `./install.sh --package` builds a skills-only ZIP under `dist/`; lifecycle hooks are excluded.
 
-The catalog plugin is named Codex Tempo. The local marketplace keeps the SessionStart hook; the catalog package has a separate onboarding skill and square SVG icon.
+The catalog plugin is named Codex Tempo. The local marketplace keeps the SessionStart hook; the catalog package includes the complete workflow skill, a short onboarding skill, publication metadata, and a square PNG icon. Its privacy notice and terms of use are in `PRIVACY.md` and `TERMS.md`.
 
 ### Store a fresh usage snapshot
 

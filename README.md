@@ -161,7 +161,7 @@ python3.11 scripts/install.py
 - `./install.sh --uninstall` показывает список управляемых файлов, сохраняет резервную копию и спрашивает подтверждение. Marketplace plugin удаляется отдельным подтверждением.
 - `./install.sh --package` собирает skills-only ZIP в `dist/`; lifecycle hook в него не входит.
 
-Плагин для каталога называется Codex Tempo. Локальный marketplace оставляет SessionStart hook. Пакет каталога отдельно содержит onboarding skill и квадратную SVG-иконку.
+Плагин для каталога называется Codex Tempo. Локальный marketplace оставляет SessionStart hook. Пакет каталога содержит основной workflow skill, короткий onboarding, метаданные публикации и квадратную PNG-иконку. Политика конфиденциальности и условия использования опубликованы в `PRIVACY.md` и `TERMS.md`.
 
 ### Сохранить свежий снимок счётчика
 
