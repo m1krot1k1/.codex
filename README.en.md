@@ -125,21 +125,20 @@ If a model is not available for the current account/version, do not substitute a
 
 ## Quick start
 
-Requires Python 3.11+ (standard library) and Codex Desktop or CLI. Check the selected interpreter's version: macOS system `python3` may be older. The example uses `python3.11`; substitute the path to any suitable version you have. Clone the repository into a normal working folder, then run:
+Requires Python 3.11+ (standard library) and Codex Desktop or CLI. Clone the repository into a normal working folder and run the single installer:
 
 ```bash
-python3.11 --version
-python3.11 scripts/validate.py
-python3.11 -m unittest discover -s tests -v
-python3.11 scripts/install.py --dry-run
-python3.11 scripts/install.py
+./install.sh
 ```
 
-To add the plugin to Codex Desktop/CLI from a local clone of the private repository:
+It finds a suitable Python, previews the plan, asks for confirmation, installs the package, and adds the local plugin. Restart Codex and inspect the SessionStart hook in **Settings → Hooks** before its first use.
+
+To install the instructions manually without connecting the plugin, run:
 
 ```bash
-codex plugin marketplace add /absolute/path/to/.codex
-codex plugin add adaptive-quota@adaptive-codex
+python3.11 scripts/validate.py
+python3.11 scripts/install.py --dry-run
+python3.11 scripts/install.py
 ```
 
 Restart Codex. Before the first run, open `/hooks` in the CLI or **Settings → Hooks** in the app, inspect the `SessionStart` command, and trust only its current contents. Codex skips unreviewed plugin hooks. This hook cannot block work and reads only `$CODEX_HOME/state/adaptive-quota.json`.
@@ -153,7 +152,7 @@ The installer:
 - creates a separate backup of changed files under `backups/adaptive-codex-install/` before replacement; on a write error it attempts to roll back completed changes and reports the backup location;
 - does not touch authentication, history, secrets, model settings, `service_tier`, working repositories, or projects.
 
-The plugin is installed separately by the commands above, so the user can see when it is connected and review its hook. The regular installer does not add hooks directly to `config.toml`.
+`install.sh` connects the plugin separately from installing instructions and does not add hooks directly to `config.toml`. If setup stops while connecting the plugin, run `./install.sh` again; completed steps are skipped or safely repeated.
 
 ### Store a fresh usage snapshot
 
@@ -218,6 +217,7 @@ In interactive CLI, resume long work with `codex resume`. In Codex Desktop, cont
 - `agents/*.toml` — six named Codex roles.
 - `config/agents.toml` — documented agent configuration fragment.
 - `scripts/install.py` — safe installation with backups.
+- `install.sh` — one-command interactive installation of the package and local plugin.
 - `scripts/quota_snapshot.py` — short-lived quota snapshot storage with `0600` file permissions.
 - `scripts/quota_guard.py` — recommendation from both remaining percentages, reset timers, urgency, and criticality; it makes no model calls.
 - `scripts/mco_gate.py` — optional gate for a confirmed read-only MCO review.

@@ -125,21 +125,20 @@ python3 scripts/mco_gate.py \
 
 ## Быстрый старт
 
-Требуется Python 3.11+ (стандартная библиотека), Codex Desktop или Codex CLI. Проверьте версию выбранного интерпретатора: системный `python3` на macOS может быть старее. В примере используется `python3.11`; если у вас другая подходящая версия, замените команду её путём. Клонируйте репозиторий в обычную рабочую папку, затем выполните:
+Требуется Python 3.11+ (стандартная библиотека), Codex Desktop или Codex CLI. Клонируйте репозиторий в обычную рабочую папку и запустите единый установщик:
 
 ```bash
-python3.11 --version
-python3.11 scripts/validate.py
-python3.11 -m unittest discover -s tests -v
-python3.11 scripts/install.py --dry-run
-python3.11 scripts/install.py
+./install.sh
 ```
 
-Чтобы добавить плагин в Codex Desktop/CLI из клона приватного репозитория:
+Он найдёт подходящий Python, покажет план, попросит подтверждение, установит комплект и подключит локальный plugin. После установки перезапустите Codex и проверьте SessionStart hook в **Settings → Hooks** перед первым использованием.
+
+Для ручной установки инструкций без подключения plugin выполните:
 
 ```bash
-codex plugin marketplace add /absolute/path/to/.codex
-codex plugin add adaptive-quota@adaptive-codex
+python3.11 scripts/validate.py
+python3.11 scripts/install.py --dry-run
+python3.11 scripts/install.py
 ```
 
 Перезапустите Codex. Перед первым запуском откройте `/hooks` в CLI или **Settings → Hooks** в приложении, проверьте команду `SessionStart` и доверяйте только её актуальному содержимому. Codex пропускает непроверенные plugin hooks. Хук ничего не блокирует и читает только `$CODEX_HOME/state/adaptive-quota.json`.
@@ -153,7 +152,7 @@ codex plugin add adaptive-quota@adaptive-codex
 - перед заменой создаёт отдельную резервную копию изменяемых файлов в `backups/adaptive-codex-install/`; при ошибке записи пытается отменить завершённые изменения и сообщает путь к копиям;
 - не трогает авторизацию, историю, секреты, настройки моделей, `service_tier`, рабочие репозитории и проекты.
 
-Плагин устанавливается отдельно командой выше, чтобы явно показать момент его подключения и доверия к hook. Обычная установка не добавляет hook напрямую в `config.toml`.
+`install.sh` подключает plugin отдельно от установки инструкций и не добавляет hook напрямую в `config.toml`. Если установка прервётся на подключении plugin, запустите `./install.sh` ещё раз: завершённые шаги пропускаются или безопасно повторяются.
 
 ### Сохранить свежий снимок счётчика
 
@@ -218,6 +217,7 @@ python3 scripts/quota_guard.py \
 - `agents/*.toml` — шесть именованных ролей Codex.
 - `config/agents.toml` — документированный фрагмент настроек агентов.
 - `scripts/install.py` — безопасная установка с резервным копированием.
+- `install.sh` — единая интерактивная установка комплекта и локального плагина.
 - `scripts/quota_snapshot.py` — запись/чтение краткоживущего снимка лимитов с правами `0600`.
 - `scripts/quota_guard.py` — расчёт режима по двум остаткам, таймерам, срочности и критичности; не вызывает модели.
 - `scripts/mco_gate.py` — опциональный шлюз для подтверждённого read-only MCO review.
